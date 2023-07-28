@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首页</title>
+</head>
+
+<body>
+
+    <div class="message-container">
+        <div>
+            <div>你的id:<span id="your_id"></span> </div>
+            <div>好友的id:<span id="friend_id"></span> </div>
+        </div>
+        <div class="list">
+        </div>
+        <div>
+            <textarea id="message-input" onkeyup="sendMessage()"></textarea>
+        </div>
+        <button style="display: none;" id="conn_btn" onclick="start()">连接sse</button>
+    </div>
+
+    <script>
+        async function sendMessage(e) {
+            if (event.keyCode !== 13 || !event.target.value) {
+                return
+            }
+            debugger
+            let message = event.target.value;
+            message = message.substring(0, message.length - 1);
+            if(!message) {
+                return
+            }
+            addMessage(event.target.value, true);
+            event.target.value = "";
+            const request = {
+                from_user_id: getYourId(),
+                to_user_id: getFriendId(),
+                message
+            };
+            const resp = await fetch("/sse/push", {
+                method: "post",
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(request)
+            });
+            const data = await resp.text();
+            console.log(data);
+        }
+        function addMessage(message, me) {
+            let el = `<div class="line">
+                <div class="item">
+                    <div>${me ? "你" : "好友"}说:${message}</div>
+                </div>
+            </div>`;
+            const list = document.querySelector(".list");
+            list.insertAdjacentHTML('beforeend', el);
+        }
+
+        function start() {
+            const ws = new EventSource("/sse?user_id=" + getYourId());
+            ws.onopen = () => {
+                console.log("连接成功");
+            }
+            ws.onerror = (e) => {
+                console.log("sse error:", e);
+                ws.close();
+                window.setTimeout(start, 2000);
+
+            }
+            ws.addEventListener("message", (m) => {
+                addMessage(m.data, false);
+            })
+        }
+
+        window.onload = () => {
+            let from_user_id, to_user_id;
+            while (true) {
+                from_user_id = prompt("你的id");
+                if (from_user_id && !isNaN(from_user_id)) {
+                    break
+                }
+            }
+            while (true) {
+                to_user_id = prompt("好友的id");
+                if (to_user_id && !isNaN(to_user_id)) {
+                    break
+                }
+            }
+            setYourId(from_user_id);
+            setFriendId(to_user_id);
+            start();
+        }
+
+        function setYourId(user_id) {
+            document.querySelector("#your_id").innerText = user_id;
+        }
+        function getYourId() {
+            return parseInt(document.querySelector("#your_id").innerText);
+        }
+        function setFriendId(user_id) {
+            document.querySelector("#friend_id").innerText = user_id;
+        }
+        function getFriendId() {
+            return parseInt(document.querySelector("#friend_id").innerText);
+        }
+    </script>
+
+</body>
+
+</html>
